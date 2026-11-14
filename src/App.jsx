@@ -3,16 +3,26 @@ import { Routes, Route } from "react-router-dom";
 import { Alert, Snackbar } from "@mui/material";
 
 import api from "./api/axios.js";
+import { useAuth } from "./context/AuthContext.jsx";
+
 import MainLayout from "./layouts/MainLayout.jsx";
 import ProductListPage from "./pages/ProductListPage.jsx";
 import ProductDetailsPage from "./pages/ProductDetailsPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 
+import LoginPage from "./pages/auth/LoginPage.jsx";
+import RegisterPage from "./pages/auth/RegisterPage.jsx";
+
+import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
+import AdminRoute from "./components/auth/AdminRoute.jsx";
+
 function App() {
+  const { isAuthenticated } = useAuth();
+
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [notice, setNotice] = useState({
@@ -21,8 +31,16 @@ function App() {
     severity: "success",
   });
 
-  // GET: Load products and categories from Laravel
+  // Load products only after login
   useEffect(() => {
+    if (!isAuthenticated) {
+      setProducts([]);
+      setCategories([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -51,6 +69,7 @@ function App() {
         setCategories(categoryData);
       } catch (err) {
         console.error("Failed to load data:", err);
+
         setError(
           err.response?.data?.message ??
             "Unable to load products. Please check your Laravel server."
@@ -61,7 +80,7 @@ function App() {
     };
 
     fetchData();
-  }, []);
+  }, [isAuthenticated]);
 
   const showNotice = (message, severity = "success") => {
     setNotice({
@@ -71,7 +90,7 @@ function App() {
     });
   };
 
-  // POST: Add product
+  // Add product
   const addProduct = async (productData) => {
     try {
       const response = await api.post("/products", productData);
@@ -92,15 +111,17 @@ function App() {
       return true;
     } catch (err) {
       console.error("Failed to add product:", err);
+
       showNotice(
         err.response?.data?.message ?? "Failed to add product.",
         "error"
       );
+
       return false;
     }
   };
 
-  // PUT: Update product
+  // Update product
   const updateProduct = async (productData) => {
     try {
       const response = await api.put(
@@ -132,15 +153,17 @@ function App() {
       return true;
     } catch (err) {
       console.error("Failed to update product:", err);
+
       showNotice(
         err.response?.data?.message ?? "Failed to update product.",
         "error"
       );
+
       return false;
     }
   };
 
-  // DELETE: Remove product
+  // Delete product
   const deleteProduct = async (productId) => {
     try {
       await api.delete(`/products/${productId}`);
@@ -153,10 +176,12 @@ function App() {
       return true;
     } catch (err) {
       console.error("Failed to delete product:", err);
+
       showNotice(
         err.response?.data?.message ?? "Failed to delete product.",
         "error"
       );
+
       return false;
     }
   };
@@ -164,30 +189,45 @@ function App() {
   return (
     <>
       <Routes>
-        <Route element={<MainLayout />}>
-          <Route
-            path="/"
-            element={
-              <ProductListPage
-                products={products}
-                categories={categories}
-                loading={loading}
-                error={error}
-                onAddProduct={addProduct}
-                onUpdateProduct={updateProduct}
-                onDeleteProduct={deleteProduct}
-              />
-            }
-          />
+        {/* Public authentication pages */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
-          <Route
-            path="/products/:id"
-            element={<ProductDetailsPage 
-              products={products}
-              loading={loading} />}
-          />
+        {/* Protected application pages */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
+            <Route
+              path="/"
+              element={
+                <ProductListPage
+                  products={products}
+                  categories={categories}
+                  loading={loading}
+                  error={error}
+                  onAddProduct={addProduct}
+                  onUpdateProduct={updateProduct}
+                  onDeleteProduct={deleteProduct}
+                />
+              }
+            />
 
-          <Route path="*" element={<NotFoundPage />} />
+            <Route
+              path="/products/:id"
+              element={
+                <ProductDetailsPage
+                  products={products}
+                  loading={loading}
+                />
+              }
+            />
+
+            {/* Admin-only route group for future admin pages */}
+            <Route element={<AdminRoute />}>
+              {/* Add admin-only pages here if needed */}
+            </Route>
+
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
         </Route>
       </Routes>
 
